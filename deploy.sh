@@ -168,17 +168,23 @@ docker_exec composer require laravel/breeze --dev --no-interaction 2>/dev/null |
 echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || \
     docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || true
 
-# ─── Step 10: Run CRM installer ─────────────────────────
+# ─── Step 10: Run migrations FIRST ──────────────────────
+info "Running database migrations..."
+docker_exec php artisan migrate --force
+
+# ─── Step 11: Run CRM installer ─────────────────────────
 info "Running Laravel CRM installer..."
-CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2)
+CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2 | tr -d '[:space:]')
 ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
 
 # El installer pregunta en orden:
 # 1. "I understand, lets proceed (yes/no)" → yes
-# 2. "Name"                                → Admin
-# 3. "Email"                               → CRM_OWNER
-# 4. "Password"                            → ADMIN_PASS
-# 5. "Confirm Password"                    → ADMIN_PASS
+# 2. "Encrypt sensitive fields?"           → enter (no)
+# 3. "First name"                          → Admin
+# 4. "Last name"                           → User
+# 5. "Email"                               → CRM_OWNER
+# 6. "Password"                            → ADMIN_PASS
+# 7. "Confirm Password"                    → ADMIN_PASS
 printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     "${CRM_OWNER}" \
     "${ADMIN_PASS}" \
@@ -186,7 +192,7 @@ printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
-# ─── Step 10b: Crear usuario si el installer no lo hizo ──
+# ─── Step 11b: Crear usuario si el installer no lo hizo ──
 info "Ensuring CRM owner user exists..."
 docker_exec php artisan tinker --execute="
     \$u = App\\Models\\User::firstOrCreate(
@@ -202,10 +208,6 @@ docker_exec php artisan tinker --execute="
     }
     echo \$u->wasRecentlyCreated ? 'CREATED' : 'ALREADY_EXISTS';
 " 2>/dev/null && info "CRM owner ready: ${CRM_OWNER}" || warn "Could not verify user — check manually"
-
-# ─── Step 11: Migrations ───────────────────────────────
-info "Running database migrations..."
-docker_exec php artisan migrate --force
 
 # ─── Step 12: CRM seeds (roles, permissions) ───────────
 info "Seeding CRM roles and permissions..."
