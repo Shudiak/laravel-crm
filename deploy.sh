@@ -176,7 +176,6 @@ docker_exec php artisan migrate --force
 info "Running Laravel CRM installer..."
 CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2 | tr -d '[:space:]')
 ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
-INSTALLER_PASS="Install@2026!"
 # El installer pregunta en orden:
 # 1. "I understand, lets proceed (yes/no)" → yes
 # 2. "Encrypt sensitive fields?"           → enter (no)
@@ -187,8 +186,8 @@ INSTALLER_PASS="Install@2026!"
 # 7. "Confirm Password"                    → ADMIN_PASS
 printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     "${CRM_OWNER}" \
-    "${INSTALLER_PASS}" \
-    "${INSTALLER_PASS}" | \
+    "${ADMIN_PASS}" \
+    "${ADMIN_PASS}" | \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
@@ -206,10 +205,9 @@ docker_exec php artisan tinker --execute="
     echo \$u->email;
 " 2>/dev/null && info "CRM owner ready: ${CRM_OWNER}" || warn "Could not verify user"
 
-# ─── Step 12: CRM seeds (roles, permissions) ───────────
-info "Seeding CRM roles and permissions..."
-docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\RoleSeeder" --force 2>/dev/null || true
-docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\PermissionSeeder" --force 2>/dev/null || true
+# Step 12: CRM seeds (roles, permissions, pipelines)
+docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\LaravelCrmTablesSeeder" --force
+docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\LaravelCrmPipelineTablesSeeder" --force
 
 # ─── Step 12b: Create admin user manually if installer failed ──
 if [ "${CRM_NEEDS_USER:-false}" = "true" ]; then
