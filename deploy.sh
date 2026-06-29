@@ -11,7 +11,7 @@ set -euo pipefail
 #   2. Generates secure random passwords
 #   3. Builds the PHP-FPM Docker image
 #   4. Starts database and waits for it
-#   5. Installs Composer dependencies
+#   5. Installs Composer dependencies (as root in container)
 #   6. Generates APP_KEY
 #   7. Installs Laravel Breeze
 #   8. Runs CRM installer + migrations + seeds
@@ -41,6 +41,16 @@ COMPOSE_CMD="docker compose"
 if ! docker compose version >/dev/null 2>&1; then
     COMPOSE_CMD="docker-compose"
 fi
+
+# Helper: run a command inside the app container as root
+docker_exec_root() {
+    $COMPOSE_CMD exec -T -u root app "$@"
+}
+
+# Helper: run a command inside the app container as www-data
+docker_exec() {
+    $COMPOSE_CMD exec -T app "$@"
+}
 
 # ─── Step 1: Environment file ───────────────────────────
 info "Setting up environment..."
@@ -77,7 +87,7 @@ fi
 info "Building PHP-FPM Docker image (this may take a few minutes)..."
 $COMPOSE_CMD build app
 
-# ─── Step 4: Start database ──────────────────────────────
+# ─── Step 4: Start database first ───────────────────────
 info "Starting database..."
 $COMPOSE_CMD up -d db
 sleep 5
@@ -93,39 +103,56 @@ until $COMPOSE_CMD exec -T db mysqladmin ping -h localhost -u root --silent 2>/d
 done
 info "Database is ready"
 
-# ─── Step 5: Install Composer dependencies ──────────────
+# ─── Step 5: Start app container (needed for exec) ──────
+info "Starting app container..."
+$COMPOSE_CMD up -d app
+sleep 3
+
+# ─── Step 6: Install Composer dependencies ──────────────
 info "Installing Composer dependencies (Laravel + CRM package)..."
-$COMPOSE_CMD run --rm app composer install --no-interaction --optimize-autoloader
+# Run as root because the volume is owned by root on the host
+docker_exec_root composer install --no-interaction --optimize-autoloader
 
-# ─── Step 6: Generate APP_KEY ────────────────────────────
+# ─── Step 7: Fix permissions after composer install ─────
+info "Fixing storage permissions..."
+docker_exec_root mkdir -p /var/www/html/storage/framework/views \
+    /var/www/html/storage/framework/sessions \
+    /var/www/html/storage/framework/cache/data \
+    /var/www/html/storage/framework/testing \
+    /var/www/html/storage/logs \
+    /var/www/html/storage/tmp \
+    /var/www/html/bootstrap/cache
+docker_exec_root chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# ─── Step 8: Generate APP_KEY ───────────────────────────
 info "Generating application key..."
-$COMPOSE_CMD run --rm app php artisan key:generate --ansi
+docker_exec php artisan key:generate --ansi
 
-# ─── Step 7: Install Laravel Breeze ──────────────────────
+# ─── Step 9: Install Laravel Breeze ─────────────────────
 info "Installing Laravel Breeze (authentication scaffold)..."
-echo "breeze" | $COMPOSE_CMD run --rm app php artisan breeze:install blade --no-interaction 2>/dev/null || \
-    $COMPOSE_CMD run --rm app php artisan breeze:install blade --no-interaction
+docker_exec composer require laravel/breeze --dev --no-interaction 2>/dev/null || true
+echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || \
+    docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || true
 
-# ─── Step 8: Run CRM installer ───────────────────────────
+# ─── Step 10: Run CRM installer ─────────────────────────
 info "Running Laravel CRM installer..."
-printf "breeze\n" | $COMPOSE_CMD run --rm app \
-    php artisan laravelcrm:install --no-interaction 2>/dev/null || true
+printf "blade\n" | docker_exec php artisan laravelcrm:install --no-interaction 2>/dev/null || true
 
-# ─── Step 9: Migrations ──────────────────────────────────
+# ─── Step 11: Migrations ───────────────────────────────
 info "Running database migrations..."
-$COMPOSE_CMD run --rm app php artisan migrate --force
+docker_exec php artisan migrate --force
 
-# ─── Step 10: CRM seeds (roles, permissions) ─────────────
+# ─── Step 12: CRM seeds (roles, permissions) ───────────
 info "Seeding CRM roles and permissions..."
-$COMPOSE_CMD run --rm app php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\RoleSeeder" --force 2>/dev/null || true
-$COMPOSE_CMD run --rm app php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\PermissionSeeder" --force 2>/dev/null || true
+docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\RoleSeeder" --force 2>/dev/null || true
+docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\PermissionSeeder" --force 2>/dev/null || true
 
-# ─── Step 11: Create admin user ──────────────────────────
+# ─── Step 13: Create admin user ────────────────────────
 info "Creating admin user..."
 CRM_OWNER=$(grep LARAVEL_CRM_OWNER .env | cut -d= -f2)
 ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
 
-$COMPOSE_CMD run --rm app php artisan tinker --execute="
+docker_exec php artisan tinker --execute="
     \$u = App\\Models\\User::firstOrCreate(['email' => '${CRM_OWNER}'], [
         'name' => 'Admin',
         'password' => bcrypt('${ADMIN_PASS}'),
@@ -135,22 +162,22 @@ $COMPOSE_CMD run --rm app php artisan tinker --execute="
     echo 'User OK: ' . \$u->email;
 "
 
-# ─── Step 12: Fix permissions ────────────────────────────
+# ─── Step 14: Fix permissions again ─────────────────────
 info "Fixing storage permissions..."
-$COMPOSE_CMD run --rm app chown -R www-data:www-data /var/www/html/storage
+docker_exec_root chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# ─── Step 13: Clear caches ───────────────────────────────
+# ─── Step 15: Clear caches ──────────────────────────────
 info "Clearing caches..."
-$COMPOSE_CMD run --rm app php artisan config:clear
-$COMPOSE_CMD run --rm app php artisan cache:clear
-$COMPOSE_CMD run --rm app php artisan view:clear
-$COMPOSE_CMD run --rm app php artisan route:clear
+docker_exec php artisan config:clear
+docker_exec php artisan cache:clear
+docker_exec php artisan view:clear
+docker_exec php artisan route:clear
 
-# ─── Step 14: Start all containers ──────────────────────
+# ─── Step 16: Start all containers ──────────────────────
 info "Starting all containers..."
 $COMPOSE_CMD up -d
 
-# ─── Step 15: Health check ──────────────────────────────
+# ─── Step 17: Health check ──────────────────────────────
 sleep 3
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/crm/login 2>/dev/null || echo "000")
 
@@ -165,9 +192,9 @@ echo -e "  Password:   ${YELLOW}${ADMIN_PASS}${NC}"
 echo ""
 echo -e "  ${RED}Save this password — it won't be shown again${NC}"
 echo ""
-echo -e "  Containers: ${YELLOW}\$COMPOSE_CMD ps${NC}"
-echo -e "  Logs:       ${YELLOW}\$COMPOSE_CMD logs -f${NC}"
-echo -e "  Stop:       ${YELLOW}\$COMPOSE_CMD down${NC}"
+echo -e "  Containers: ${YELLOW}$COMPOSE_CMD ps${NC}"
+echo -e "  Logs:       ${YELLOW}$COMPOSE_CMD logs -f${NC}"
+echo -e "  Stop:       ${YELLOW}$COMPOSE_CMD down${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 
 if [ "$HTTP_CODE" = "200" ]; then

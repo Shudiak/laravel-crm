@@ -14,7 +14,8 @@ RUN apk add --no-cache \
     icu-dev \
     libxml2-dev \
     nodejs \
-    npm
+    npm \
+    su-exec
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j$(nproc) \
@@ -34,6 +35,10 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Fix PHP-FPM runs as www-data but files are owned by root
-RUN chown -R www-data:www-data /var/www/html
-USER www-data
+# Entrypoint: fix permissions at runtime, then drop to www-data for php-fpm
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+CMD ["php-fpm"]
