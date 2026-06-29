@@ -176,7 +176,7 @@ docker_exec php artisan migrate --force
 info "Running Laravel CRM installer..."
 CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2 | tr -d '[:space:]')
 ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
-
+INSTALLER_PASS="Install@2026!"
 # El installer pregunta en orden:
 # 1. "I understand, lets proceed (yes/no)" → yes
 # 2. "Encrypt sensitive fields?"           → enter (no)
@@ -187,27 +187,24 @@ ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
 # 7. "Confirm Password"                    → ADMIN_PASS
 printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     "${CRM_OWNER}" \
-    "${ADMIN_PASS}" \
-    "${ADMIN_PASS}" | \
+    "${INSTALLER_PASS}" \
+    "${INSTALLER_PASS}" | \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
-# ─── Step 11b: Crear usuario si el installer no lo hizo ──
+# ─── Step 11b: Crear usuario / actualizar password ───────
 info "Ensuring CRM owner user exists..."
 docker_exec php artisan tinker --execute="
     \$u = App\\Models\\User::firstOrCreate(
         ['email' => '${CRM_OWNER}'],
-        [
-            'name'     => 'Admin',
-            'password' => bcrypt('${ADMIN_PASS}'),
-        ]
+        ['name' => 'Admin', 'password' => bcrypt('${ADMIN_PASS}')]
     );
+    \$u->password = bcrypt('${ADMIN_PASS}');
+    \$u->save();
     \$role = Spatie\\Permission\\Models\\Role::where('name', 'owner')->first();
-    if (\$role && !\$u->hasRole('owner')) {
-        \$u->assignRole(\$role);
-    }
-    echo \$u->wasRecentlyCreated ? 'CREATED' : 'ALREADY_EXISTS';
-" 2>/dev/null && info "CRM owner ready: ${CRM_OWNER}" || warn "Could not verify user — check manually"
+    if (\$role && !\$u->hasRole('owner')) { \$u->assignRole(\$role); }
+    echo \$u->email;
+" 2>/dev/null && info "CRM owner ready: ${CRM_OWNER}" || warn "Could not verify user"
 
 # ─── Step 12: CRM seeds (roles, permissions) ───────────
 info "Seeding CRM roles and permissions..."
