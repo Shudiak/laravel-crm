@@ -160,7 +160,7 @@ CRM_OWNER=$(grep LARAVEL_CRM_OWNER "${ENV_DIR}/.env" | cut -d= -f2)
 ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
 
 printf "Admin\n%s\n%s\n%s\n" "${CRM_OWNER}" "${ADMIN_PASS}" "${ADMIN_PASS}" | \
-    docker_exec php artisan laravelcrm:install || \
+    docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
 # ─── Step 10b: Verify CRM owner was created correctly ────
@@ -168,13 +168,15 @@ info "Verifying CRM owner user..."
 USER_CHECK=$(docker_exec php artisan tinker --execute="
     \$u = App\\Models\\User::where('email', '${CRM_OWNER}')->first();
     echo \$u ? 'FOUND' : 'NOTFOUND';
-")
+" 2>/dev/null || echo "NOTFOUND")
 
 if [[ "$USER_CHECK" != *"FOUND"* ]]; then
-    error "CRM owner user '${CRM_OWNER}' was not created correctly. Check installer prompt order with: $COMPOSE_CMD exec app php artisan laravelcrm:install"
+    warn "CRM owner user '${CRM_OWNER}' not found — will attempt manual creation after migrations..."
+    CRM_NEEDS_USER=true
+else
+    info "CRM owner verified: ${CRM_OWNER}"
+    CRM_NEEDS_USER=false
 fi
-info "CRM owner verified: ${CRM_OWNER}"
-
 
 # ─── Step 11: Migrations ───────────────────────────────
 info "Running database migrations..."
@@ -185,6 +187,22 @@ info "Seeding CRM roles and permissions..."
 docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\RoleSeeder" --force 2>/dev/null || true
 docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\PermissionSeeder" --force 2>/dev/null || true
 
+# ─── Step 12b: Create admin user manually if installer failed ──
+if [ "${CRM_NEEDS_USER:-false}" = "true" ]; then
+    info "Creating admin user manually..."
+    docker_exec php artisan tinker --execute="
+        \$user = App\\Models\\User::firstOrCreate(
+            ['email' => '${CRM_OWNER}'],
+            [
+                'name'     => 'Admin',
+                'password' => bcrypt('${ADMIN_PASS}'),
+            ]
+        );
+        \$role = Spatie\\Permission\\Models\\Role::where('name', 'owner')->first();
+        if (\$role) { \$user->assignRole(\$role); }
+        echo 'User created: ' . \$user->email;
+    " 2>/dev/null || warn "Manual user creation failed — check logs"
+fi
 
 # ─── Step 14: Fix permissions again ─────────────────────
 info "Fixing storage permissions..."
