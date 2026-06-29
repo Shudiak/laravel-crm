@@ -55,32 +55,35 @@ docker_exec() {
 # ─── Step 1: Environment file ───────────────────────────
 info "Setting up environment..."
 
-if [ ! -f .env ]; then
-    cp .env.example .env
-    info "Created .env from .env.example"
+ENV_DIR="./app"
+if [ ! -f "${ENV_DIR}/.env" ]; then
+    cp "${ENV_DIR}/.env.example" "${ENV_DIR}/.env"
+    info "Created ${ENV_DIR}/.env from .env.example"
 else
-    warn ".env already exists — skipping creation"
+    warn "${ENV_DIR}/.env already exists — skipping creation"
 fi
 
 # ─── Step 2: Generate secure passwords ──────────────────
-if grep -q "CHANGE\.\.\." .env 2>/dev/null; then
+APP_DIR="./app"
+
+if grep -q "CHANGE_ME" "${APP_DIR}/.env" 2>/dev/null; then
     DB_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
     ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo example.com)
     CRM_OWNER_EMAIL="admin@${HOSTNAME_FQDN}"
 
-    # Update .env
-    sed -i "s|CHANGE.*DB_PASSWORD_HERE|${DB_PASS}|g" .env
-    sed -i "s|CHANGE.*ROOT_PASSWORD_HERE|${ROOT_PASS}|g" .env
-    sed -i "s|admin@example.com|${CRM_OWNER_EMAIL}|g" .env
+    # Update app/.env (this is the file Laravel actually reads inside the container)
+    sed -i "s|CHANGE.*DB_PASSWORD_HERE|${DB_PASS}|g" "${APP_DIR}/.env"
+    sed -i "s|CHANGE.*ROOT_PASSWORD_HERE|${ROOT_PASS}|g" "${APP_DIR}/.env"
+    sed -i "s|admin@example.com|${CRM_OWNER_EMAIL}|g" "${APP_DIR}/.env"
 
-    # Update docker-compose.yml
+    # Update docker-compose.yml (stays at repo root — correct as-is)
     sed -i "s|crm_pass_2026|${DB_PASS}|g" docker-compose.yml
     sed -i "s|crm_root_2026|${ROOT_PASS}|g" docker-compose.yml
 
     info "Generated secure DB credentials"
 else
-    warn "Credentials already set in .env — skipping"
+    warn "Credentials already set in ${APP_DIR}/.env — skipping"
 fi
 
 # ─── Step 3: Build Docker image ─────────────────────────
@@ -136,7 +139,24 @@ echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/
 
 # ─── Step 10: Run CRM installer ─────────────────────────
 info "Running Laravel CRM installer..."
-printf "blade\n" | docker_exec php artisan laravelcrm:install --no-interaction 2>/dev/null || true
+CRM_OWNER=$(grep LARAVEL_CRM_OWNER "${ENV_DIR}/.env" | cut -d= -f2)
+ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+
+printf "Admin\n%s\n%s\n%s\n" "${CRM_OWNER}" "${ADMIN_PASS}" "${ADMIN_PASS}" | \
+    docker_exec php artisan laravelcrm:install
+
+# ─── Step 10b: Verify CRM owner was created correctly ────
+info "Verifying CRM owner user..."
+USER_CHECK=$(docker_exec php artisan tinker --execute="
+    \$u = App\\Models\\User::where('email', '${CRM_OWNER}')->first();
+    echo \$u ? 'FOUND' : 'NOTFOUND';
+")
+
+if [[ "$USER_CHECK" != *"FOUND"* ]]; then
+    error "CRM owner user '${CRM_OWNER}' was not created correctly. Check installer prompt order with: $COMPOSE_CMD exec app php artisan laravelcrm:install"
+fi
+info "CRM owner verified: ${CRM_OWNER}"
+
 
 # ─── Step 11: Migrations ───────────────────────────────
 info "Running database migrations..."
@@ -147,20 +167,6 @@ info "Seeding CRM roles and permissions..."
 docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\RoleSeeder" --force 2>/dev/null || true
 docker_exec php artisan db:seed --class="VentureDrake\\LaravelCrm\\Database\\Seeders\\PermissionSeeder" --force 2>/dev/null || true
 
-# ─── Step 13: Create admin user ────────────────────────
-info "Creating admin user..."
-CRM_OWNER=$(grep LARAVEL_CRM_OWNER .env | cut -d= -f2)
-ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
-
-docker_exec php artisan tinker --execute="
-    \$u = App\\Models\\User::firstOrCreate(['email' => '${CRM_OWNER}'], [
-        'name' => 'Admin',
-        'password' => bcrypt('${ADMIN_PASS}'),
-    ]);
-    \$role = VentureDrake\\LaravelCrm\\Models\\Role::where('name', 'Owner')->first();
-    if (\$role) { \$u->assignRole(\$role); }
-    echo 'User OK: ' . \$u->email;
-"
 
 # ─── Step 14: Fix permissions again ─────────────────────
 info "Fixing storage permissions..."
