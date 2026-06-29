@@ -1,0 +1,28 @@
+# Dependencies (installed by deploy.sh)
+app/vendor/
+app/node_modules/
+
+# Runtime files (generated on deploy)
+app/storage/logs/*
+app/storage/framework/cache/*
+app/storage/framework/sessions/*
+app/storage/framework/views/*
+app/bootstrap/cache/*
+
+# Secrets
+app/.env
+.env
+
+# Docker volumes
+crm_db_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
