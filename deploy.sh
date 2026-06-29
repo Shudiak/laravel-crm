@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # ═══════════════════════════════════════════════════════════
 # Laravel CRM — Docker Deployment Bootstrap
