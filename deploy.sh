@@ -72,12 +72,12 @@ if grep -q "CHANGE_ME" "${APP_DIR}/.env" 2>/dev/null; then
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo example.com)
     CRM_OWNER_EMAIL="admin@${HOSTNAME_FQDN}"
 
-    # Update app/.env (this is the file Laravel actually reads inside the container)
     sed -i "s|CHANGE.*DB_PASSWORD_HERE|${DB_PASS}|g" "${APP_DIR}/.env"
     sed -i "s|CHANGE.*ROOT_PASSWORD_HERE|${ROOT_PASS}|g" "${APP_DIR}/.env"
-    sed -i "s|admin@example.com|${CRM_OWNER_EMAIL}|g" "${APP_DIR}/.env"
+    if [ -n "${CRM_OWNER_EMAIL}" ]; then
+        sed -i "s|admin@example.com|${CRM_OWNER_EMAIL}|g" "${APP_DIR}/.env"
+    fi
 
-    # Update docker-compose.yml (stays at repo root — correct as-is)
     sed -i "s|crm_pass_2026|${DB_PASS}|g" docker-compose.yml
     sed -i "s|crm_root_2026|${ROOT_PASS}|g" docker-compose.yml
 
@@ -86,6 +86,10 @@ else
     DB_PASS=$(grep "^DB_PASSWORD=" "${APP_DIR}/.env" | cut -d= -f2 || echo "")
     warn "Credentials already set in ${APP_DIR}/.env — skipping"
 fi
+
+# Leer siempre el email real del .env (funciona en ambos casos: nuevo o existente)
+CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${APP_DIR}/.env" | cut -d= -f2 | tr -d '[:space:]')
+info "CRM Owner: ${CRM_OWNER}"
 
 # ─── Step 2b: Garantizar configuración DB correcta ──────
 info "Ensuring DB config is correct..."
@@ -252,7 +256,7 @@ echo -e "${GREEN}  Laravel CRM deployed successfully!${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo ""
 # Leer siempre del .env justo antes de mostrar
-FINAL_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2)
+FINAL_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "./app/.env" | cut -d= -f2 | tr -d '[:space:]')
 echo -e "  CRM Login:  ${YELLOW}http://localhost:8080/crm/login${NC}"
 echo -e "  Email:      ${YELLOW}${FINAL_OWNER}${NC}"
 echo -e "  Password:   ${YELLOW}${ADMIN_PASS}${NC}"
