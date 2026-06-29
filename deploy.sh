@@ -186,20 +186,22 @@ printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
-# ─── Step 10b: Verify CRM owner was created correctly ────
-info "Verifying CRM owner user..."
-USER_CHECK=$(docker_exec php artisan tinker --execute="
-    \$u = App\\Models\\User::where('email', '${CRM_OWNER}')->first();
-    echo \$u ? 'FOUND' : 'NOTFOUND';
-" 2>/dev/null || echo "NOTFOUND")
-
-if [[ "$USER_CHECK" != *"FOUND"* ]]; then
-    warn "CRM owner user '${CRM_OWNER}' not found — will attempt manual creation after migrations..."
-    CRM_NEEDS_USER=true
-else
-    info "CRM owner verified: ${CRM_OWNER}"
-    CRM_NEEDS_USER=false
-fi
+# ─── Step 10b: Crear usuario si el installer no lo hizo ──
+info "Ensuring CRM owner user exists..."
+docker_exec php artisan tinker --execute="
+    \$u = App\\Models\\User::firstOrCreate(
+        ['email' => '${CRM_OWNER}'],
+        [
+            'name'     => 'Admin',
+            'password' => bcrypt('${ADMIN_PASS}'),
+        ]
+    );
+    \$role = Spatie\\Permission\\Models\\Role::where('name', 'owner')->first();
+    if (\$role && !\$u->hasRole('owner')) {
+        \$u->assignRole(\$role);
+    }
+    echo \$u->wasRecentlyCreated ? 'CREATED' : 'ALREADY_EXISTS';
+" 2>/dev/null && info "CRM owner ready: ${CRM_OWNER}" || warn "Could not verify user — check manually"
 
 # ─── Step 11: Migrations ───────────────────────────────
 info "Running database migrations..."
