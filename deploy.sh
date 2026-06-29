@@ -87,20 +87,20 @@ else
 fi
 
 # ─── Step 2b: Garantizar DB_DATABASE en .env ────────────
-info "Ensuring DB_DATABASE is set correctly..."
-if ! grep -q "^DB_DATABASE=" "${APP_DIR}/.env"; then
-    echo "DB_DATABASE=laravel_crm" >> "${APP_DIR}/.env"
-    info "DB_DATABASE=laravel_crm added to .env"
-else
-    sed -i 's|^DB_DATABASE=.*|DB_DATABASE=laravel_crm|' "${APP_DIR}/.env"
-    info "DB_DATABASE corrected to laravel_crm"
-fi
+info "Ensuring DB config is correct..."
+sed -i '/^DB_DATABASE=/d' "${APP_DIR}/.env"
+sed -i '/^DB_HOST=/d'     "${APP_DIR}/.env"
+sed -i '/^DB_CONNECTION=/d' "${APP_DIR}/.env"
+sed -i '/^DB_PORT=/d'     "${APP_DIR}/.env"
 
-# Garantizar conexión MySQL (no SQLite)
-sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=mysql|' "${APP_DIR}/.env"
-sed -i 's|^DB_HOST=.*|DB_HOST=db|' "${APP_DIR}/.env"
-sed -i 's|^DB_PORT=.*|DB_PORT=3306|' "${APP_DIR}/.env"
+cat >> "${APP_DIR}/.env" << 'DBEOF'
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=laravel_crm
+DBEOF
 
+info "DB config set:"
 grep "^DB_" "${APP_DIR}/.env"
 
 # ─── Step 3: Build Docker image ─────────────────────────
