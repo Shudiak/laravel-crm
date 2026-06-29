@@ -175,7 +175,7 @@ ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
 # 3. "Email"                               → CRM_OWNER
 # 4. "Password"                            → ADMIN_PASS
 # 5. "Confirm Password"                    → ADMIN_PASS
-printf "yes\nAdmin\n%s\n%s\n%s\n" \
+printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
     "${CRM_OWNER}" \
     "${ADMIN_PASS}" \
     "${ADMIN_PASS}" | \
