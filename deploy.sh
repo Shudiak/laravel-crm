@@ -251,8 +251,10 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${GREEN}  Laravel CRM deployed successfully!${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo ""
+# Leer siempre del .env justo antes de mostrar
+FINAL_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2)
 echo -e "  CRM Login:  ${YELLOW}http://localhost:8080/crm/login${NC}"
-echo -e "  Email:      ${YELLOW}${CRM_OWNER}${NC}"
+echo -e "  Email:      ${YELLOW}${FINAL_OWNER}${NC}"
 echo -e "  Password:   ${YELLOW}${ADMIN_PASS}${NC}"
 echo ""
 echo -e "  ${RED}Save this password — it won't be shown again${NC}"
