@@ -176,18 +176,11 @@ docker_exec php artisan migrate --force
 info "Running Laravel CRM installer..."
 CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2 | tr -d '[:space:]')
 ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
-# El installer pregunta en orden:
-# 1. "I understand, lets proceed (yes/no)" → yes
-# 2. "Encrypt sensitive fields?"           → enter (no)
-# 3. "First name"                          → Admin
-# 4. "Last name"                           → User
-# 5. "Email"                               → CRM_OWNER
-# 6. "Password"                            → ADMIN_PASS
-# 7. "Confirm Password"                    → ADMIN_PASS
-printf "yes\n\nAdmin\nUser\n%s\n%s\n%s\n" \
-    "${CRM_OWNER}" \
-    "${ADMIN_PASS}" \
-    "${ADMIN_PASS}" | \
+
+# Solo respondemos "yes" a la confirmación inicial.
+# El installer fallará al pedir contraseña (hidden() no lee pipe sin TTY)
+# pero eso es ignorado — el Step 11b crea el usuario correctamente.
+printf "yes\n" | \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
