@@ -160,7 +160,8 @@ CRM_OWNER=$(grep LARAVEL_CRM_OWNER "${ENV_DIR}/.env" | cut -d= -f2)
 ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
 
 printf "Admin\n%s\n%s\n%s\n" "${CRM_OWNER}" "${ADMIN_PASS}" "${ADMIN_PASS}" | \
-    docker_exec php artisan laravelcrm:install
+    docker_exec php artisan laravelcrm:install || \
+    warn "CRM installer reported an error — continuing anyway..."
 
 # ─── Step 10b: Verify CRM owner was created correctly ────
 info "Verifying CRM owner user..."
@@ -198,7 +199,11 @@ docker_exec php artisan route:clear
 
 # ─── Step 16: Start all containers ──────────────────────
 info "Starting all containers..."
-$COMPOSE_CMD up -d
+$COMPOSE_CMD up -d || error "Failed to start containers"
+
+# Verificar que web levantó
+sleep 3
+docker compose ps
 
 # ─── Step 17: Health check ──────────────────────────────
 sleep 3
