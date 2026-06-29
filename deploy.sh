@@ -67,8 +67,8 @@ fi
 APP_DIR="./app"
 
 if grep -q "CHANGE_ME" "${APP_DIR}/.env" 2>/dev/null; then
-    DB_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
-    ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+    DB_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
+    ROOT_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo example.com)
     CRM_OWNER_EMAIL="admin@${HOSTNAME_FQDN}"
 
@@ -83,21 +83,31 @@ if grep -q "CHANGE_ME" "${APP_DIR}/.env" 2>/dev/null; then
 
     info "Generated secure DB credentials"
 else
+    DB_PASS=$(grep "^DB_PASSWORD=" "${APP_DIR}/.env" | cut -d= -f2 || echo "")
     warn "Credentials already set in ${APP_DIR}/.env — skipping"
 fi
 
-# ─── Step 2b: Garantizar DB_DATABASE en .env ────────────
+# ─── Step 2b: Garantizar configuración DB correcta ──────
 info "Ensuring DB config is correct..."
-sed -i '/^DB_DATABASE=/d' "${APP_DIR}/.env"
-sed -i '/^DB_HOST=/d'     "${APP_DIR}/.env"
 sed -i '/^DB_CONNECTION=/d' "${APP_DIR}/.env"
-sed -i '/^DB_PORT=/d'     "${APP_DIR}/.env"
+sed -i '/^DB_HOST=/d'       "${APP_DIR}/.env"
+sed -i '/^DB_PORT=/d'       "${APP_DIR}/.env"
+sed -i '/^DB_DATABASE=/d'   "${APP_DIR}/.env"
+sed -i '/^DB_USERNAME=/d'   "${APP_DIR}/.env"
+sed -i '/^DB_PASSWORD=/d'   "${APP_DIR}/.env"
 
-cat >> "${APP_DIR}/.env" << 'DBEOF'
+# Leer el password generado en Step 2 (ya está en el .env como CHANGE_ME o fue generado)
+# Si fue saltado (warn), leerlo del .env actual
+CURRENT_DB_PASS=$(grep "^DB_PASSWORD=" "${APP_DIR}/.env" | cut -d= -f2 || echo "")
+FINAL_DB_PASS="${DB_PASS:-${CURRENT_DB_PASS:-crm_pass_2026}}"
+
+cat >> "${APP_DIR}/.env" << DBEOF
 DB_CONNECTION=mysql
 DB_HOST=db
 DB_PORT=3306
 DB_DATABASE=laravel_crm
+DB_USERNAME=crm_user
+DB_PASSWORD=${FINAL_DB_PASS}
 DBEOF
 
 info "DB config set:"
@@ -156,10 +166,19 @@ echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/
 
 # ─── Step 10: Run CRM installer ─────────────────────────
 info "Running Laravel CRM installer..."
-CRM_OWNER=$(grep LARAVEL_CRM_OWNER "${ENV_DIR}/.env" | cut -d= -f2)
-ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+CRM_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "${ENV_DIR}/.env" | cut -d= -f2)
+ADMIN_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16)
 
-printf "Admin\n%s\n%s\n%s\n" "${CRM_OWNER}" "${ADMIN_PASS}" "${ADMIN_PASS}" | \
+# El installer pregunta en orden:
+# 1. "I understand, lets proceed (yes/no)" → yes
+# 2. "Name"                                → Admin
+# 3. "Email"                               → CRM_OWNER
+# 4. "Password"                            → ADMIN_PASS
+# 5. "Confirm Password"                    → ADMIN_PASS
+printf "yes\nAdmin\n%s\n%s\n%s\n" \
+    "${CRM_OWNER}" \
+    "${ADMIN_PASS}" \
+    "${ADMIN_PASS}" | \
     docker_exec php artisan laravelcrm:install 2>&1 || \
     warn "CRM installer reported an error — continuing anyway..."
 
