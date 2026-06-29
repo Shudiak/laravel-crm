@@ -86,6 +86,23 @@ else
     warn "Credentials already set in ${APP_DIR}/.env — skipping"
 fi
 
+# ─── Step 2b: Garantizar DB_DATABASE en .env ────────────
+info "Ensuring DB_DATABASE is set correctly..."
+if ! grep -q "^DB_DATABASE=" "${APP_DIR}/.env"; then
+    echo "DB_DATABASE=laravel_crm" >> "${APP_DIR}/.env"
+    info "DB_DATABASE=laravel_crm added to .env"
+else
+    sed -i 's|^DB_DATABASE=.*|DB_DATABASE=laravel_crm|' "${APP_DIR}/.env"
+    info "DB_DATABASE corrected to laravel_crm"
+fi
+
+# Garantizar conexión MySQL (no SQLite)
+sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=mysql|' "${APP_DIR}/.env"
+sed -i 's|^DB_HOST=.*|DB_HOST=db|' "${APP_DIR}/.env"
+sed -i 's|^DB_PORT=.*|DB_PORT=3306|' "${APP_DIR}/.env"
+
+grep "^DB_" "${APP_DIR}/.env"
+
 # ─── Step 3: Build Docker image ─────────────────────────
 info "Building PHP-FPM Docker image (this may take a few minutes)..."
 $COMPOSE_CMD build app
