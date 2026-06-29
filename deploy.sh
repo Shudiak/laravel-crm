@@ -57,7 +57,7 @@ info "Setting up environment..."
 
 ENV_DIR="./app"
 if [ ! -f "${ENV_DIR}/.env" ]; then
-    cp "${ENV_DIR}/.env.example" "${ENV_DIR}/.env"
+    cp ".env.example" "${ENV_DIR}/.env"
     info "Created ${ENV_DIR}/.env from .env.example"
 else
     warn "${ENV_DIR}/.env already exists — skipping creation"
