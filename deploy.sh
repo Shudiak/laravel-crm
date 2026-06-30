@@ -139,6 +139,17 @@ docker_exec composer require laravel/breeze --dev --no-interaction 2>/dev/null |
 echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || \
     docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || true
 
+# ─── Step 9b: Inject Custom CRM Webhook Routes ──────────
+info "Injecting CRM Webhook routes into web.php..."
+cat >> "${APP_DIR}/routes/web.php" << 'WEBHOOKEOF'
+
+// Webhooks
+Route::middleware(['auth'])->prefix('crm')->group(function () {
+    Route::get('/webhooks', [App\Http\Controllers\WebhookController::class, 'index'])
+        ->name('crm.webhooks.index');
+});
+WEBHOOKEOF
+
 # ─── Step 10: Run migrations ────────────────────────────
 info "Running database migrations..."
 docker_exec php artisan migrate --force
