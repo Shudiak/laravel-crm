@@ -40,14 +40,9 @@ fi
 if grep -q "CHANGE_ME" "${APP_DIR}/.env" 2>/dev/null; then
     DB_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
     ROOT_PASS=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
-    HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo example.com)
-    CRM_OWNER_EMAIL="admin@${HOSTNAME_FQDN}"
 
     sed -i "s|CHANGE.*DB_PASSWORD_HERE|${DB_PASS}|g" "${APP_DIR}/.env"
     sed -i "s|CHANGE.*ROOT_PASSWORD_HERE|${ROOT_PASS}|g" "${APP_DIR}/.env"
-    if [ -n "${CRM_OWNER_EMAIL}" ]; then
-        sed -i "s|admin@example.com|${CRM_OWNER_EMAIL}|g" "${APP_DIR}/.env"
-    fi
 
     sed -i "s|crm_pass_2026|${DB_PASS}|g" docker-compose.yml
     sed -i "s|crm_root_2026|${ROOT_PASS}|g" docker-compose.yml
@@ -140,8 +135,9 @@ echo "blade" | docker_exec php artisan breeze:install blade --no-interaction 2>/
     docker_exec php artisan breeze:install blade --no-interaction 2>/dev/null || true
 
 # ─── Step 9b: Inject Custom CRM Webhook Routes ──────────
-info "Injecting CRM Webhook routes into web.php..."
-cat >> "${APP_DIR}/routes/web.php" << 'WEBHOOKEOF'
+if ! grep -q "crm/webhooks" "${APP_DIR}/routes/web.php" 2>/dev/null; then
+    info "Injecting CRM Webhook routes into web.php..."
+    cat >> "${APP_DIR}/routes/web.php" << 'WEBHOOKEOF'
 
 // Webhooks
 Route::middleware(['auth'])->prefix('crm')->group(function () {
@@ -149,6 +145,9 @@ Route::middleware(['auth'])->prefix('crm')->group(function () {
         ->name('crm.webhooks.index');
 });
 WEBHOOKEOF
+else
+    info "CRM Webhook routes already exist in web.php — skipping injection"
+fi
 
 # ─── Step 10: Run migrations ────────────────────────────
 info "Running database migrations..."
@@ -216,7 +215,7 @@ echo -e "${BLUE}═════════════════════�
 echo ""
 FINAL_OWNER=$(grep "^LARAVEL_CRM_OWNER=" "./app/.env" | cut -d= -f2 | tr -d '[:space:]')
 echo -e "  CRM Login:  ${YELLOW}http://localhost:8080/crm/login${NC}"
-echo -e "  Email:      ${YELLOW}${FINAL_OWNER}${NC}"
+echo -e "  Email/User: ${YELLOW}${FINAL_OWNER}${NC}"
 echo -e "  Password:   ${YELLOW}${ADMIN_PASS}${NC}"
 echo ""
 echo -e "  ${RED}Save this password — it won't be shown again${NC}"
