@@ -9,6 +9,8 @@
         "php": "^8.3",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
+        "spatie/laravel-webhook-client": "^3.6",
+        "spatie/laravel-webhook-server": "^3.10",
         "venturedrake/laravel-crm": "^2.3"
     },
     "require-dev": {
