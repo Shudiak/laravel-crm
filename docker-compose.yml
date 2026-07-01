@@ -34,10 +34,10 @@ services:
     container_name: crm-db
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: cHM5m7WyFm0Q95wLZjvX0Y4X3KhRf5NOroot
+      MARIADB_ROOT_PASSWORD: crm_root_2026
       MARIADB_DATABASE: laravel_crm
       MARIADB_USER: crm_user
-      MARIADB_PASSWORD: cHM5m7WyFm0Q95wLZjvX0Y4X3KhRf5NO
+      MARIADB_PASSWORD: crm_pass_2026
     volumes:
       - crm_db_data:/var/lib/mysql
     networks:
