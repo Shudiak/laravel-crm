@@ -18,7 +18,7 @@ Dockerized deployment for [VentureDrake Laravel CRM](https://github.com/ventured
 ## Quick Start
 
 ```bash
-git clone https://github.com/Shudiak/laravel-crm.git
+git clone -b feature/webhooks https://github.com/Shudiak/laravel-crm.git
 cd laravel-crm
 chmod +x deploy.sh
 ./deploy.sh

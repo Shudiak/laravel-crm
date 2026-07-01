@@ -18,3 +18,9 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// Webhooks
+Route::middleware(['auth'])->prefix('crm')->group(function () {
+    Route::get('/webhooks', [App\Http\Controllers\WebhookController::class, 'index'])
+        ->name('crm.webhooks.index');
+});
