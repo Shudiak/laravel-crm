@@ -7,8 +7,47 @@
         </x-slot:actions>
     </x-mary-header>
 
-    {{-- Table --}}
-    <x-mary-card>
+    {{-- Incoming Endpoints --}}
+    <x-mary-card title="Incoming Endpoints" subtitle="Use these URLs to send data into the CRM from external sources" class="mb-6">
+        <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                <div>
+                    <div class="font-semibold text-sm">Create Lead</div>
+                    <div class="text-xs text-base-content/60 mt-1">POST — Accepts: name, first_name, last_name, email, phone, message, title</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <code class="text-xs bg-base-300 px-3 py-1 rounded font-mono">
+                        {{ url('/webhook/incoming') }}
+                    </code>
+                    <x-mary-button
+                        icon="o-clipboard"
+                        class="btn-ghost btn-sm"
+                        tooltip="Copy URL"
+                        x-data
+                        @click="navigator.clipboard.writeText('{{ url('/webhook/incoming') }}'); $dispatch('mary-toast', {type: 'success', message: 'URL copied!'})"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <x-mary-alert title="Example payload" icon="o-code-bracket" class="alert-info">
+                <x-slot:description>
+                    <pre class="text-xs mt-1">{{ json_encode([
+                        'first_name' => 'Juan',
+                        'last_name'  => 'Pérez',
+                        'email'      => 'juan@example.com',
+                        'phone'      => '+573001234567',
+                        'message'    => 'Interesado en el producto',
+                        'title'      => 'Juan Pérez - Web Form',
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                </x-slot:description>
+            </x-mary-alert>
+        </div>
+    </x-mary-card>
+
+    {{-- Outgoing Webhooks --}}
+    <x-mary-card title="Outgoing Webhooks" subtitle="Notify external systems when events occur in the CRM">
         @php
             $headers = [
                 ['key' => 'name',      'label' => 'Name'],

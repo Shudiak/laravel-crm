@@ -34,7 +34,7 @@
             </label>
             <x-mary-popover>
                 <x-slot:trigger>
-                    <a class="navbar-brand text-2xl font-extrabold" href="{{ url(route('laravel-crm.dashboard')) }}" @can('view crm updates')data-toggle="tooltip" data-placement="bottom" title="v{{ config('laravel-crm.version') }}"@endcan><img src="{{ asset('vendor/laravel-crm/img/laravel-crm-logo.png') }}" width="215" class="block dark:hidden" /> <img src="{{ asset('vendor/laravel-crm/img/laravel-crm-dark-logo.png') }}" width="215" class="hidden dark:inline" /> </a>
+                    <a class="navbar-brand text-2xl font-extrabold" href="{{ url(route('laravel-crm.dashboard')) }}" @can('view crm updates')data-toggle="tooltip" data-placement="bottom" title="v{{ config('laravel-crm.version') }}"@endcan><img src="{{ asset('vendor/laravel-crm/img/laravel-crm-logo.png') }}" width="215" class="block" /> <img src="{{ asset('vendor/laravel-crm/img/laravel-crm-dark-logo.png') }}" width="215" class="hidden" /> </a>
                 </x-slot:trigger>
                 <x-slot:content>
                     Version {{ config('laravel-crm.version') }} <br>
