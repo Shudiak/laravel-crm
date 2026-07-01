@@ -24,3 +24,7 @@ Route::middleware(['auth'])->prefix('crm')->group(function () {
     Route::get('/webhooks', [App\Http\Controllers\WebhookController::class, 'index'])
         ->name('crm.webhooks.index');
 });
+
+// Incoming webhook — público, sin autenticación
+Route::post('/webhook/incoming', [App\Http\Controllers\IncomingWebhookController::class, 'receive'])
+    ->name('webhook.incoming');
