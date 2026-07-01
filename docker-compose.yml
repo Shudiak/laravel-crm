@@ -48,6 +48,22 @@ services:
       timeout: 5s
       retries: 5
 
+  queue:
+    image: laravel-crm-app
+    container_name: crm-queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=60
+    volumes:
+      - ./app:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - crm_net
+    env_file:
+      - ./app/.env
+
 networks:
   crm_net:
     driver: bridge
