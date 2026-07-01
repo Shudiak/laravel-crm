@@ -104,6 +104,26 @@ until $COMPOSE_CMD exec -T db mysqladmin ping -h localhost -u root --silent 2>/d
 done
 info "Database is ready"
 
+# ─── Step 4b: Verify DB credentials match .env ──────────
+info "Verifying DB credentials match .env..."
+if ! $COMPOSE_CMD exec -T db mysql -uroot -p"${FINAL_ROOT_PASS}" -e "SELECT 1" >/dev/null 2>&1; then
+  warn "Root password in .env does NOT match the existing database volume."
+  warn "This usually happens when the volume 'crm_db_data' already existed from a previous deploy —"
+  warn "MariaDB only applies MARIADB_ROOT_PASSWORD/MARIADB_PASSWORD when the volume is first created."
+  echo ""
+  echo -e "  ${YELLOW}Options:${NC}"
+  echo -e "   1) If this is a fresh/test environment with no data to keep, run:"
+  echo -e "      ${YELLOW}${COMPOSE_CMD} down && docker volume rm laravel-crm_crm_db_data && ./deploy.sh${NC}"
+  echo -e "   2) If you need to keep existing data, manually sync the password:"
+  echo -e "      ${YELLOW}docker exec -it crm-db mysql -uroot -p<OLD_ROOT_PASSWORD>${NC}"
+  echo -e "      ${YELLOW}ALTER USER 'crm_user'@'%' IDENTIFIED BY '${FINAL_DB_PASS}';${NC}"
+  echo -e "      ${YELLOW}ALTER USER 'root'@'localhost' IDENTIFIED BY '${FINAL_ROOT_PASS}';${NC}"
+  echo -e "      ${YELLOW}FLUSH PRIVILEGES;${NC}"
+  error "Aborting deploy — credentials mismatch must be resolved first."
+else
+  info "DB credentials verified OK"
+fi
+
 # ─── Step 5: Start app container ────────────────────────
 info "Starting app container..."
 $COMPOSE_CMD up -d app
