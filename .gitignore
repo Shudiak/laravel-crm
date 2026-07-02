@@ -26,3 +26,4 @@ crm_db_data/
 .DS_Store
 Thumbs.db
 *.log
+app/public/vendor/laravel-crm/fonts/
