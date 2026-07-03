@@ -1,0 +1,40 @@
+--- a/src/Models/ProductPrice.php
++++ b/src/Models/ProductPrice.php
+@@ -1,9 +1,8 @@
+ <?php
+-
+ namespace VentureDrake\LaravelCrm\Models;
+-
+ use Illuminate\Database\Eloquent\SoftDeletes;
+ use VentureDrake\LaravelCrm\Traits\BelongsToTeams;
++use function VentureDrake\LaravelCrm\Http\Helpers\ConvertCase\floatfromNumberFormat;
+ 
+ class ProductPrice extends Model
+ {
+@@ -20,7 +19,7 @@
+     public function setUnitPriceAttribute($value)
+     {
+         if (isset($value)) {
+-            $this->attributes['unit_price'] = $value * 100;
++            $this->attributes['unit_price'] = floatfromNumberFormat($value) * 100;
+         } else {
+             $this->attributes['unit_price'] = null;
+         }
+@@ -29,7 +28,7 @@
+     public function setCostPerUnitAttribute($value)
+     {
+         if (isset($value)) {
+-            $this->attributes['cost_per_unit'] = $value * 100;
++            $this->attributes['cost_per_unit'] = floatfromNumberFormat($value) * 100;
+         } else {
+             $this->attributes['cost_per_unit'] = null;
+         }
+@@ -38,7 +37,7 @@
+     public function setDirectCostAttribute($value)
+     {
+         if (isset($value)) {
+-            $this->attributes['direct_cost'] = $value * 100;
++            $this->attributes['direct_cost'] = floatfromNumberFormat($value) * 100;
+         } else {
+             $this->attributes['direct_cost'] = null;
+         }

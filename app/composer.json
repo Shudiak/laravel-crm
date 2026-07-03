@@ -74,6 +74,11 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "patches": {
+            "venturedrake/laravel-crm": {
+                "Corrige 'A non-numeric value encountered' al guardar precios con formato": "patches/fix-product-price-non-numeric.patch"
+            }
         }
     },
     "config": {
